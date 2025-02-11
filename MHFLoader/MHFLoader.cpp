@@ -53,10 +53,27 @@ void LaunchAndInject(const std::wstring& exePath, const std::string& dllPath) {
 }
 
 int main() {
-    std::wstring exePath = L"F:\\Games\\Monster Hunter Frontier\\Monster Hunter Frontier Z Zenith\\mhf.exe";
-    std::string dllPath = "F:\\Games\\Monster Hunter Frontier\\Monster Hunter Frontier Z Zenith\\MHFPatcher.dll";
+    // Get the full path to the loader executable.
+    char modulePath[MAX_PATH];
+    GetModuleFileNameA(NULL, modulePath, MAX_PATH);
+    std::string fullPath(modulePath);
 
-    LaunchAndInject(exePath, dllPath);
+    // Extract the folder from the full path.
+    size_t pos = fullPath.find_last_of("\\/");
+    std::string folderPath = (pos != std::string::npos) ? fullPath.substr(0, pos + 1) : "";
+
+    // Build full paths for mhf.exe and MHFPatcher.dll located in the same directory.
+    std::string targetExePath = folderPath + "mhf.exe";
+    std::string dllPath = folderPath + "MHFPatcher.dll";
+
+    // Optional: Print the paths for debugging.
+    std::cout << "Target EXE: " << targetExePath << std::endl;
+    std::cout << "DLL: " << dllPath << std::endl;
+
+    // Convert targetExePath to a wide string for CreateProcess.
+    std::wstring wTargetExePath(targetExePath.begin(), targetExePath.end());
+
+    LaunchAndInject(wTargetExePath, dllPath);
 
     return 0;
 }
