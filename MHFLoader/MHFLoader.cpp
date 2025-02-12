@@ -27,7 +27,7 @@ void InjectDLL(HANDLE hProcess, const char* dllPath) {
     VirtualFreeEx(hProcess, allocMem, 0, MEM_RELEASE);
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     char exePath[MAX_PATH];
     char dllPath[MAX_PATH];
 
@@ -38,6 +38,22 @@ int main() {
     // Construct full paths
     std::string exeFullPath = directory + "\\mhf.exe";
     std::string dllFullPath = directory + "\\MHFPatcher.dll";
+
+    // Check command-line arguments for -exe
+    for (int i = 1; i < argc; i++) {
+        if (std::string(argv[i]) == "-exe" && i + 1 < argc) {
+            exeFullPath = argv[i + 1];
+            break;
+        }
+    }
+
+	// Check command-line arguments for -dll
+	for (int i = 1; i < argc; i++) {
+		if (std::string(argv[i]) == "-dll" && i + 1 < argc) {
+			dllFullPath = argv[i + 1];
+			break;
+		}
+	}
 
     // Convert to C-style strings
     strcpy_s(exePath, exeFullPath.c_str());
