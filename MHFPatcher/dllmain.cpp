@@ -1,75 +1,88 @@
 #include "pch.h"
 #include <Windows.h>
-#include <MinHook.h>
+#include <detours.h>
 #include <iostream>
+#include <fstream>
 
-#pragma comment(lib, "libs/MinHook.lib")
+#pragma comment(lib, "libs/detours.lib")
 
-// Pointer to original GetCommandLineA function
-typedef LPSTR(WINAPI* GetCommandLineA_t)(void);
-GetCommandLineA_t fpGetCommandLineA = NULL;
+// Logging function
+void Log(const char* message) {
+    std::ofstream logFile("patcher.log", std::ios::app);
+    if (logFile.is_open()) {
+        logFile << message << std::endl;
+        logFile.close();
+    }
+}
 
-// Hex sequence to find: 55 8B EC 81 EC 04
-const BYTE pattern[] = { 0x55, 0x8B, 0xEC, 0x81, 0xEC, 0x04 };
-const size_t patternSize = sizeof(pattern);
+// Original function pointer
+typedef char* (WINAPI* GetCommandLineA_t)(void);
+GetCommandLineA_t Original_GetCommandLineA = GetCommandLineA;
 
-// Patch: mov eax, 1; ret (B8 01 00 00 00 C3)
-const BYTE patch[] = { 0xB8, 0x01, 0x00, 0x00, 0x00, 0xC3 };
+// The byte sequence we are looking for
+const BYTE targetSequence[] = { 0x55, 0x8B, 0xEC, 0x81, 0xEC, 0x04 };
+const BYTE patchBytes[] = { 0xB8, 0x01, 0x00, 0x00, 0x00, 0xC3 }; // MOV EAX,1 ; RET
 
-void ScanAndPatchMemory() {
+// Function to scan and patch memory
+void ScanAndPatch() {
     SYSTEM_INFO sysInfo;
     GetSystemInfo(&sysInfo);
 
-    BYTE* startAddr = (BYTE*)sysInfo.lpMinimumApplicationAddress;
-    BYTE* endAddr = (BYTE*)sysInfo.lpMaximumApplicationAddress;
+    BYTE* startAddress = (BYTE*)sysInfo.lpMinimumApplicationAddress;
+    BYTE* endAddress = (BYTE*)sysInfo.lpMaximumApplicationAddress;
 
-    MEMORY_BASIC_INFORMATION mbi;
-    for (BYTE* addr = startAddr; addr < endAddr; addr += mbi.RegionSize) {
-        if (!VirtualQuery(addr, &mbi, sizeof(mbi)) || mbi.State != MEM_COMMIT || mbi.Protect == PAGE_NOACCESS) {
-            continue;
-        }
+    MEMORY_BASIC_INFORMATION memInfo;
 
-        for (BYTE* scan = (BYTE*)mbi.BaseAddress; scan < (BYTE*)mbi.BaseAddress + mbi.RegionSize - patternSize; scan++) {
-            if (memcmp(scan, pattern, patternSize) == 0) {
-                // Found the pattern, patch it
-                MessageBoxA(NULL, "Patching memory...", "MinHook DLL", MB_OK);
-                DWORD oldProtect;
-                VirtualProtect(scan, sizeof(patch), PAGE_EXECUTE_READWRITE, &oldProtect);
-                memcpy(scan, patch, sizeof(patch));
-                VirtualProtect(scan, sizeof(patch), oldProtect, &oldProtect);
-                return;
+    while (startAddress < endAddress) {
+        if (VirtualQuery(startAddress, &memInfo, sizeof(memInfo)) == sizeof(memInfo)) {
+            if (memInfo.State == MEM_COMMIT && (memInfo.Protect & PAGE_EXECUTE_READWRITE || memInfo.Protect & PAGE_EXECUTE_READ)) {
+                BYTE* buffer = new BYTE[memInfo.RegionSize];
+                SIZE_T bytesRead;
+
+                if (ReadProcessMemory(GetCurrentProcess(), startAddress, buffer, memInfo.RegionSize, &bytesRead)) {
+                    for (SIZE_T i = 0; i < bytesRead - sizeof(targetSequence); i++) {
+                        if (memcmp(buffer + i, targetSequence, sizeof(targetSequence)) == 0) {
+                            BYTE* patchAddress = startAddress + i;
+                            if (patchAddress > (BYTE*)0x10000000) {
+                                return;
+                            }
+
+                            DWORD oldProtect;
+                            VirtualProtect(patchAddress, sizeof(patchBytes), PAGE_EXECUTE_READWRITE, &oldProtect);
+                            WriteProcessMemory(GetCurrentProcess(), patchAddress, patchBytes, sizeof(patchBytes), nullptr);
+                            VirtualProtect(patchAddress, sizeof(patchBytes), oldProtect, &oldProtect);
+
+                            char logMessage[100];
+                            sprintf_s(logMessage, "[+] Memory patched at: 0x%p", patchAddress);
+                            Log(logMessage);
+                            delete[] buffer;
+                            return;
+                        }
+                    }
+                }
+                delete[] buffer;
             }
         }
-    }
-}
-
-// Hooked function
-LPSTR WINAPI HookedGetCommandLineA() {
-    static bool firstRun = true;
-
-    if (firstRun) {
-        firstRun = false;
-        ScanAndPatchMemory();
-
-        // Disable hook after execution
-        MH_DisableHook(&GetCommandLineA);
+        startAddress += memInfo.RegionSize;
     }
 
-    return fpGetCommandLineA();
+    Log("[-] Target sequence not found!");
 }
 
-// Function to set up the hook
-void SetupHook() {
-    if (MH_Initialize() != MH_OK) return;
-    if (MH_CreateHook(&GetCommandLineA, &HookedGetCommandLineA, (LPVOID*)&fpGetCommandLineA) != MH_OK) return;
-    if (MH_EnableHook(&GetCommandLineA) != MH_OK) return;
+// Hooked GetCommandLineA function
+char* WINAPI Hooked_GetCommandLineA() {
+	Log("[*] Hooked GetCommandLineA! Scanning for patch...");
+	ScanAndPatch();
+    return Original_GetCommandLineA();
 }
 
 // DLL entry point
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
-    if (ul_reason_for_call == DLL_PROCESS_ATTACH) {
-        DisableThreadLibraryCalls(hModule);
-        SetupHook();
-    }
+BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID reserved) {
+    if (reason == DLL_PROCESS_ATTACH) {
+        DetourTransactionBegin();
+        DetourUpdateThread(GetCurrentThread());
+        DetourAttach(&(PVOID&)Original_GetCommandLineA, Hooked_GetCommandLineA);
+        DetourTransactionCommit();
+	}
     return TRUE;
 }
