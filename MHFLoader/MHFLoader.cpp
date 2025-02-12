@@ -28,26 +28,24 @@ void InjectDLL(HANDLE hProcess, const char* dllPath) {
 }
 
 int main() {
-    /*
-    // Get the full path to the loader executable.
-    char modulePath[MAX_PATH];
-    GetModuleFileNameA(NULL, modulePath, MAX_PATH);
-    std::string fullPath(modulePath);
+    char exePath[MAX_PATH];
+    char dllPath[MAX_PATH];
 
-    // Extract the folder from the full path.
-    size_t pos = fullPath.find_last_of("\\/");
-    std::string folderPath = (pos != std::string::npos) ? fullPath.substr(0, pos + 1) : "";
+    // Get the directory of the current executable
+    GetModuleFileNameA(NULL, exePath, MAX_PATH);
+    std::string directory = std::string(exePath).substr(0, std::string(exePath).find_last_of("\\/"));
 
-    // Build full paths for mhf.exe and MHFPatcher.dll located in the same directory.
-    std::string targetExePath = folderPath + "mhf.exe";
-    std::string dllPath = folderPath + "MHFPatcher.dll";
+    // Construct full paths
+    std::string exeFullPath = directory + "\\mhf.exe";
+    std::string dllFullPath = directory + "\\MHFPatcher.dll";
+
+    // Convert to C-style strings
+    strcpy_s(exePath, exeFullPath.c_str());
+    strcpy_s(dllPath, dllFullPath.c_str());
 
     // Optional: Print the paths for debugging.
-    std::cout << "Target EXE: " << targetExePath << std::endl;
+    std::cout << "EXE: " << exePath << std::endl;
     std::cout << "DLL: " << dllPath << std::endl;
-    */
-    const char* exePath = "F:\\Games\\Monster Hunter Frontier\\Monster Hunter Frontier Z Zenith\\mhf.exe";
-    const char* dllPath = "C:\\Users\\wish\\source\\repos\\GGB\\Release\\MHFPatcher.dll";
 
     STARTUPINFOA si = { sizeof(si) };
     PROCESS_INFORMATION pi;
