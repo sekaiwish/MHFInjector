@@ -1,6 +1,6 @@
 #include "pch.h"
 #include <Windows.h>
-#include <detours.h>
+#include "include/detours.h"
 #include <iostream>
 #include <fstream>
 
