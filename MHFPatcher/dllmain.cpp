@@ -16,11 +16,11 @@ void Log(const char* message) {
 }
 
 // Original function pointers
-typedef char* (WINAPI* GetCommandLineA_t)(void);
+typedef int (WINAPI* WideCharToMultiByte_t)(UINT, DWORD, LPCWSTR, int, LPSTR, int, LPCSTR, LPBOOL);
 typedef ATOM(WINAPI* RegisterClassExA_t)(const WNDCLASSEXA*);
 
 // Function pointers to store original functions
-GetCommandLineA_t Original_GetCommandLineA = GetCommandLineA;
+WideCharToMultiByte_t Original_WideCharToMultiByte = WideCharToMultiByte;
 RegisterClassExA_t Original_RegisterClassExA = RegisterClassExA;
 
 // Sequences and patches
@@ -35,7 +35,7 @@ bool Patch1() {
     SYSTEM_INFO sysInfo;
     GetSystemInfo(&sysInfo);
     BYTE* startAddress = (BYTE*)sysInfo.lpMinimumApplicationAddress;
-    BYTE* endAddress = (BYTE*)sysInfo.lpMaximumApplicationAddress;
+	BYTE* endAddress = (BYTE*)0x01000000; // Limit search to 16MB
     MEMORY_BASIC_INFORMATION memInfo;
 
     while (startAddress < endAddress) {
@@ -124,15 +124,15 @@ bool Patch2() {
 	return false;
 }
 
-// Hooked GetCommandLineA function
-char* WINAPI Hooked_GetCommandLineA() {
-	Log("[*] Hooked GetCommandLineA");
+// Hooked WideCharToMultiByte function
+int WINAPI Hooked_WideCharToMultiByte(UINT CodePage, DWORD dwFlags, LPCWSTR lpWideCharStr, int cchWideChar, LPSTR lpMultiByteStr, int cbMultiByte, LPCSTR lpDefaultChar, LPBOOL lpUsedDefaultChar) {
+	Log("[*] Hooked WideCharToMultiByte");
     if (Patch1()) {
-		DetourTransactionBegin();
-        DetourDetach(&(PVOID&)Original_GetCommandLineA, Hooked_GetCommandLineA);
-		DetourTransactionCommit();
+        DetourTransactionBegin();
+		DetourDetach(&(PVOID&)Original_WideCharToMultiByte, Hooked_WideCharToMultiByte);
+        DetourTransactionCommit();
     }
-    return Original_GetCommandLineA();
+	return Original_WideCharToMultiByte(CodePage, dwFlags, lpWideCharStr, cchWideChar, lpMultiByteStr, cbMultiByte, lpDefaultChar, lpUsedDefaultChar);
 }
 
 // Hooked RegisterClassExA function
@@ -154,7 +154,7 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID reserved) {
     if (reason == DLL_PROCESS_ATTACH) {
         DetourTransactionBegin();
         DetourUpdateThread(GetCurrentThread());
-        DetourAttach(&(PVOID&)Original_GetCommandLineA, Hooked_GetCommandLineA);
+		DetourAttach(&(PVOID&)Original_WideCharToMultiByte, Hooked_WideCharToMultiByte);
 		DetourAttach(&(PVOID&)Original_RegisterClassExA, Hooked_RegisterClassExA);
         DetourTransactionCommit();
 	}
