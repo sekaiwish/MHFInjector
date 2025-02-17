@@ -1,5 +1,34 @@
 #include <Windows.h>
 #include <iostream>
+#include <fstream>
+#include <string>
+#include <vector>
+#include <ShlObj.h>
+
+const std::string HOSTS_FILE = R"(C:\Windows\System32\drivers\etc\hosts)";
+const std::string COMMENT_TAG = "# Added by MHFInjector";
+const std::vector<std::string> HOSTS_ENTRIES = {
+    "155.248.202.187 srv-mhf.capcom-networks.jp",
+    "155.248.202.187 cog-members.mhf-g.jp cog-members.mhf-z.jp"
+};
+
+bool EntryExists(const std::string& file, const std::string& entry) {
+    std::ifstream in(file);
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.find(entry) != std::string::npos) return true;
+    }
+    return false;
+}
+
+void AddEntries() {
+    std::ofstream out(HOSTS_FILE, std::ios::app);
+    if (!EntryExists(HOSTS_FILE, HOSTS_ENTRIES[0])) {
+        out << "\n" << COMMENT_TAG << "\n";
+        for (const auto& entry : HOSTS_ENTRIES) out << entry << "\n";
+		std::cout << "Hosts file entries added!\n";
+    }
+}
 
 void InjectDLL(HANDLE hProcess, const char* dllPath) {
     void* allocMem = VirtualAllocEx(hProcess, NULL, strlen(dllPath) + 1, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -28,6 +57,15 @@ void InjectDLL(HANDLE hProcess, const char* dllPath) {
 }
 
 int main(int argc, char* argv[]) {
+    BOOL isAdmin = IsUserAnAdmin();
+    if (!isAdmin) {
+        std::cerr << "MHFInjector must be run as an administrator.\n";
+        return 1;
+    }
+
+	// Add entries to hosts file
+	AddEntries();
+
     char exePath[MAX_PATH];
     char dllPath[MAX_PATH];
 
