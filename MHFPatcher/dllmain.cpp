@@ -3,12 +3,21 @@
 #include "include/detours.h"
 #include <iostream>
 #include <fstream>
+#include <Shlwapi.h>
 
 #pragma comment(lib, "libs/detours.lib")
+#pragma comment(lib, "Shlwapi.lib")
+
+std::string GetMHFDirectory() {
+    char exePath[MAX_PATH];
+    GetModuleFileNameA(NULL, exePath, MAX_PATH);  // Get mhf.exe full path
+    PathRemoveFileSpecA(exePath);  // Remove filename, leaving only the directory
+    return std::string(exePath);
+}
 
 // Logging function
 void Log(const char* message) {
-    std::ofstream logFile("MHFPatcher.log", std::ios::app);
+    std::ofstream logFile(GetMHFDirectory() + "\\MHFPatcher.log", std::ios::app);
     if (logFile.is_open()) {
         logFile << message << std::endl;
         logFile.close();
@@ -152,6 +161,7 @@ ATOM WINAPI Hooked_RegisterClassExA(const WNDCLASSEXA* lpwcx) {
 // DLL entry point
 BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID reserved) {
     if (reason == DLL_PROCESS_ATTACH) {
+		Log("[@] Started MHFInjector");
         DetourTransactionBegin();
         DetourUpdateThread(GetCurrentThread());
 		DetourAttach(&(PVOID&)Original_WideCharToMultiByte, Hooked_WideCharToMultiByte);
