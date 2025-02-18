@@ -129,6 +129,15 @@
   <ItemGroup>
     <ClCompile Include="MHFLoader.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="MHFLoader.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="F:\Files\MHF\erupenewicon\erupe.ico" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
